@@ -242,6 +242,181 @@ return view('welcome', [
 ```
 7. Por ultimo eliminaremos el elemento **Acerca de nosotros** porque no la ocuparemos, así que eliminaremos: la vista, controlador y la ruta para que ya no exista más.
 
+## Migrations
+
+Las migrations: son como un versionamiento de la base de datos, cada migration que creemos nos va a permitir modificar nuestro esquema de base de datos de una forma específica; podemos crear tablas, podemos editar una tabla que ya existe, agregando columnas, editando una columna existente, podemos eliminar tanto columnas como tablas. Vamos a poder afectar como necesitemos nuestra base de datos.
+
+Lo bueno de esto es que cada migration que creemos, la vamos a poder commitear a nuestro repositorio y mantener un historial de cómo se fue modificando nuestra base de datos.
+
+Para utilizar migrations vamos a utilizar artisan
+``php artisan make:migration [ argumentos ]`` 
+
+### Comandos de migration
+
+``migrate:install`` instalar Crear el repositorio de migración
+``migrate:refresh`` Restablecer y volver a ejecutar todas las migraciones
+``migrate:reset``   Retroceder todas las migraciones de base de datos
+``migrate:rollback`` Retroceder la última migración de la base de datos
+``migrate:status`` Muestra el estado de cada migración
+
+### Opciones y argumentos de migration
+
+Argumento Obligatorio **Name <name>**
+
+``--create[=CREATE]`` La tabla a crear
+``--table[=TABLE]`` La tabla a migrar
+``--path [= PATH]`` La ubicación donde se debe crear el archivo de migración
+``--realpath`` Indique que las rutas de archivo de migración proporcionadas son rutas absolutas previamente resueltas
+
+## Corriendo Migraciones en Nuestra Base de Datos
+
+Ahora aprenderemos a configurar nuestra base de datos para poder utilizarza en nuestros proyectos con laravel, para esto necesitamos tener instalado en nuestro entorno local un servicio mySQL en el puerto 3306 que es el que este utiliza comúnmente.
+
+Modificaremos nuestro archivo de entorno (.env) y aquí tenemos que colocar los datos requeridos para la autentificación, es decir, colocar el nombre de la base de datos, el nombre del usuario y la contraseña que ustedes estén utilizando, siempre que hagamos cambios en nuestro archivo de entorno tenemos que detener artisan y volver a ejecutarlo.
+
+A continuación comenzaremos a darle forma a nuestro esquema de base de datos utilizando la herramienta de laravel llamada "migration"
+Para crear migrations vamos a utilizar artisan con los comandos:
+
+``php artisan make:migration [ argumentos ]``
+
+En este caso crearemos la tabla para almacenar nuestros mensajes utilizando php artisan
+
+``php artisan make:migration create_messages_table --create messages``
+
+y la vamos a encontrar en la carpeta principal de nuestro proyecto, en la subcarpeta migrations.
+
+Una vez preparada nuestra migración debemos ejecutar php artisan migrate y esto ejecutará todas las migraciones que tengamos
+
+### Ejemplo de la clase 
+
+1. Primero vamos a modificar el archivo de entorno(.env) y aquí colocamos los datos requeridos para la autenticación especialmente los de la base de datos.
+2. Donde especificamos el nombre de la base de datos, está ya la tenemos que haber creado anteriormente.
+3. Una vez modificado el archivo de entorno debemos apagar el servidor y volver a levantarlo para que arranque con la nueva configuración que nosotros le pusimos.
+4. Ahora empezaremos a configurar nuestra base de datos, para ello laravel nos trae una herramienta que se llama **migrations**
+5. Vamos a crear la tabla de de **messages** usando migration:
+
+```php
+<?php
+# 1) Le pasamos el nombre de la migration: crerated_messages_table
+# 2) Antes de ejecutarlo le vamos a pasar la option --create: para indicar que queremos crear una tabla 
+# 3) Como párametro le pasamos el nombre de la tabla: messages
+php artisan make:migration crerated_messages_table --create mesaages 
+?>
+```
+Despues de ejecutarlo nos indicará que creo una nueva migration con una fecha, la fecha es muy importnante porque la migration se van a ejecutar secuencialmente por fecha, y con el nombre que le dijimos que tiene.
+``Created Migration: 2018_10_12_044210_create_messages_table``
+
+6. Las maigration las vamos a encontrar dentro de nuestro proyecto en la carpeta *database* dentro de la carpeta *migrations* y veremos que laravel ya trae migrations para nosotros: created_users y created_password estás dos migratios la vamos a utilizar cuando hagamos autenticación en Laravel.
+
+7. La nueva migration es una clase que se llama como le dijimos y tiene 2 métodos; up y down. 
+- El método up se va a ejecutar cuando le digamos a artisan que ejecute nuestras migratios.
+- El método down se va a ejecutar cuando le digamos a artisan que queremos volver atrás una migration.
+**Es muy importante que usemos los dos, siempre que hagamos algo es tenemos que poder deshacerlo así cualquier punto de nuestras migratios se puede volver atrás**
+
+En el método *Up()* tenemos una llamada al esquema create, esto es porque le dijimos que iba a hacer una migration de creación, entonces ya va a estár creando una tabla en base de datos. El primer párametro es el nombre de la tabla y el segundo párametro es una función anónima que vamos a usar para configurar está tabla, dentro de está function tenemos un objeto que se llama **Blueprint** esté *blueprint* es el que vamos a usar para configurar, le vamos a poder llamar métodos en esté objeto *blueprint* que van a decirle a laravel como queremos que se vea nuestra tabla, por ejemplo: si queremos un string o un varchar le podemos decir al *blueprint* que queremos un string y luego le decimos como queremos que se llame esa columna.
+```php
+public function up()
+    {
+        Schema::create('messages', function (Blueprint $table) {
+            $table->increments('id');
+            $table->timestamps();
+
+            $table->string('content');
+            $table->string('image');
+        });
+    }
+```
+**Con estó laravel ya sabe que cuando cree está tabla messages va a tener una columna de tipo string con el nombre que le pasamos por párametro.**
+
+También vamos a querer tener la fecha en la que se creo este mensaje. Laravel tiene una convención para su ORM que es que todas las tablas y objetos que usemos de base de datos vienen con la fecha de creación(created_at) y la fecha de ultima modificación(updated_at). y eso es la linea que hace **timestamps** 
+```php
+ Schema::create('messages', function (Blueprint $table) {
+# Está linea indica nuestra primary key, autoincremental
+            $table->increments('id');
+# Esta linea nos va a crear created_at y udated_at como dos columnas sepradas como objetos de tipo fecha.
+            $table->timestamps();
+        });
+```
+8. Despues de crear las tablas vamos a correr en la terminal el comando 
+``php artisan migrate``
+**Esto le va a decir a laravel que ejecute todas las migrations que tenga pendientes hasta la fecha actual.**
+
+9. Ahora que ya tenemos nuestra tabla creada podremos ver los campos de las tablas vacios. Probablemente nuestros mensajes los leamos cronológicamente los más nuevos primero. Para eso sería bueno crear un indice sobre la columna de creación del mensaje. Para ello vamos a ir a la terminar y crear una nueva migration.
+
+Esta nueva migration la vamos a llamar diferente porque no estamos creando tabla nueva estamos modificando una tabla ya existente.
+``php artisan make:migration: add_created_at_index_to_messages_table --table messages``
+- Si ven estamos siendo muy espeficificos, eso es bueno este archivo es muy claro lo que va a hacer y despues será facil entender viendo solamente el nombre de archivo que es lo que se esperá que haga está migration.
+- Después le pondre --table: lo que significa que está migration es de edición de una tabla.
+- Y la tabla que estoy editando es messages de nuevo.
+*Por ultimo me crea una nueva migration con el nombre que le dimos y la fecha actulizada*.
+
+10. Ahora el **Schema** no dice **create** sino que dice **table** Es porque esté app asume que la tabla ya existe y el **down()** no dice como decía el anterior porque esté down no va a borrar la tabla enterá sino que debería solamente borrar el indice. 
+```php
+public function up()
+    {
+        Schema::table('messages', function (Blueprint $table) {
+            //
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::table('messages', function (Blueprint $table) {
+            //
+        });
+    }
+```
+11. Ahora vamos a agregar el código necesario para agregar el indice 
+
+- Agregar un indice es tan fácil como decirle al **Blueprint** ``$table->index()``. El primer párametro del index será el nombre de la columna ``$table->index('nombrecolumna')`` , si yo quisiera agregar un indice de multiples columnas podría pasarle un array con los nombres de columnas ``$table->index(['columna1', 'columna2'])`` pero en nuestro caso solo tendremos una columna solo le dejaremos el *created_at*.
+- Para elimnar un indice en el método **down()** le voy a decir al **Blueprint** el método **dropIndex()** y como párametro le tengo que pasar el nombre del indice.
+1. El nombre del indice se construye a través del nombre de la tabla en nuestro caso *messages*, guión bajo el nombre del o las columnas involucradas, en nuestro caso *created_at* guión bajo y la palabra index. 
+```php
+Schema::table('messages', function (Blueprint $table) {
+            $table->dropIndex('messages_created_at_index');
+        });
+```
+- Si quisieramos podríamos elegir el nombre de nuestro indice pasandolo como segundo párametro al método index, y después hacer el **dropIndex()** pasandole como párametro el nombre que le pusimos. Ejemplo: 
+```php
+public function up()
+    {
+        Schema::table('messages', function (Blueprint $table) {
+            $table->index('created_at', 'my_created_at_index');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::table('messages', function (Blueprint $table) {
+            $table->dropIndex('my_created_at_index');
+        });
+    }
+```
+**De no hacerlo así recordemos la convención: nombre de la tabla, nombre de las columnas y la palabra index, todo separado por comas.**
+``tabla_columnas_index``
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
