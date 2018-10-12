@@ -160,6 +160,87 @@ Ejemplo:
 
 - Si deseo modificarlo solo debo especificarlo en mi archivo. Y si no lo hago el valor por defecto se heredará.
 
+## Integrando Boostrap 
+
+Ahora agregaremos Bootstrap a nuestro proyecto para poder acelerar el proceso de desarrollo, en la sección de enlaces puedes acceder a la versión qu estaremos utilizando.
+
+Vamos a empezar a desarrollar nuestro proyecto, vamos a borrar todo el contenido default de nuestro sitio y vamos a comenzar a diseñar la página principal de nuestro sitio.
+
+1. Vamos a entrar a la página de **boostrap** y entraremos en la sección de descargas, ahi copiaremos el CDN, el que contrendrá un link y un script. El link lo pegaremos en el head, mientras que el script lo pondremos antes de cerrar la etiqueta **body**.
+2. Entraremos al template de nuestro welcome.blade y pondremos el siguiente código
+```html
+<div class="jumbotron text-center">
+    <h1>Laratter</h1>
+    <nav>
+        <ul class="nav nav-pills">
+            <li class="nav-item">
+                <a class="nav-link" href="/">Home</a>
+            </li class="nav-item">
+            <li>
+                <a class="nav-link" href="/acerca">Acerca de Nosotros</a>
+            </li>
+        </ul>
+    </nav>
+</div>
+```
+3. Ahora crearemos contenido dinámico usando images para mostrar en nuestro welcome.
+
+Primero crearemos un *array* de nombre **messages** dentro de nuestro controlador antes de retornar la vista.
+Este array va tener 4 objetos por ahora, con los valores de: **id, content e image.** 
+```php
+$messages = [
+            [
+                'id' => 1,
+                'content' => 'Esté es mi primer mensaje',
+                'image' => 'https://source.unsplash.com/category/nature/600x338?4',
+            ],
+            [
+                'id' => 2,
+                'content' => 'Esté es mi segundo mensaje',
+                'image' => 'https://source.unsplash.com/category/nature/600x338?1',
+            ],
+            [
+                'id' => 3,
+                'content' => 'Esté es mi tercer mensaje',
+                'image' => 'https://source.unsplash.com/category/nature/600x338?2',
+            ],
+            [
+                'id' => 4,
+                'content' => 'Otro mensaje más mensaje',
+                'image' => 'https://source.unsplash.com/category/nature/600x338?3',
+            ]
+        ];
+``` 
+Las images serán requeridas de una api llamada [Unsplash](https://gersonlazaro.com/unsplash-api-miles-de-fotos-gratis-en-tu-sitio-web-o-aplicacion/).
+
+4. Ahora en la vista vamos a crear una Fila donde vamos a mostrar los elementos de los objetos que creamos en la variable **message** 
+5. Adentro del la fila crearemos un forEach para iterar los elementos del objeto e imprimir su valores del siguiente manera.
+```html
+<div class="row">
+    @forelse ($messages as $message)
+        <div class="col-6">
+            <img class="img-thumbnail" src=" {{$message['image']}} " alt="">
+            <p class="card-text">
+                {{ $message['content'] }}
+                <a href="/messages/{{ $message['id'] }}">Leer más</a>
+            </p>
+        </div>
+    @empty
+        <p>No hay mensajes destacados!</p>        
+    @endforelse
+</div>
+```
+- **ForElse** es un Foreach que tendra un else cuando no encuentre elementos dentro del array.
+- **Empty** Nos ayudará a mostrar un mensaje alternativo cuando el objeto venga vacío
+- Al final debemos cerrar el ForElse usando **endforelese**.
+
+6. Ahora vamos a retornar la vista pasandole como primer párametro la vista y como segundo párametro la información que va a requerir, donde pondremos la el arreglo $messages que creamos de la siguiente manerá.
+```php
+return view('welcome', [
+            'messages' => $messages,
+        ]);
+```
+7. Por ultimo eliminaremos el elemento **Acerca de nosotros** porque no la ocuparemos, así que eliminaremos: la vista, controlador y la ruta para que ya no exista más.
 
 
 
