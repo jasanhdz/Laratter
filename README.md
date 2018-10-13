@@ -405,6 +405,187 @@ public function up()
 **De no hacerlo así recordemos la convención: nombre de la tabla, nombre de las columnas y la palabra index, todo separado por comas.**
 ``tabla_columnas_index``
 
+## Usando Eloquent el ORM de Laravel
+
+Ahora vamos a usar Eloquent para acceder a una base de datos, para eso vamos a empezar creando un modelo, el modelo es lo que nos va a representar nuestros objetos en nuestro dominio, nosotros vamos a tener: mensajes, usuarios, vamos a tener una relación entre ellos, vamos a tener otros objetos como por ejemplo conversaciones, todo esto va a hacer parte de nuestro modelo, para ello empecemos modelando el mensaje.
+
+1. Vamos a ir al terminal y vamos a escribir el comando:
+``php artisan make:model Message``
+2. Una vez creado vamos a ir a la carpeta de App en la raíz.
+
+Aquí tenemos el modelo de message, esta dentro del namespace de app y extiende de la clase Eloquent\Model.
+**Eloquent** es el ORM que viene en laravel por defecto.
+Un ORM: Object relational mapping es una librería que nos ayudá a convertir un esquema relacional; que es una base de datos relacional a un esquema de objetos, que van a hacer estos objetos que vamos a definir como nuestro modelo, particularmente Eloquent ocupa un patrón que se llama **Active-record**, así que si escuchan estó sepan que en nuestro caso también van a estar hablando de eloquent.
+
+3. Nuestra clase Message no tiene nada pero en realidad tiene un montón de lógica escondida dentro de la clase model.
+4. Ahora vamos a tratar de usarla para eso vamos a ir a nuestro pagesController y vamos a replazar el array de $messages por un llamado a nuestro modelo.
+``$messages = App\Message::all() ``
+5. Si ahora vamos a nuestron home podres nota que aún no tenemos nada, ya que aún no tenemos datos en nuestras tablas, para ello vamos a hacer 2 insert en nuestra base de datos manualmente, para ello iremos a la DB y los insertaremos en la tabla messages.
+6. Si ahora actualizamos nuestra home notaremos que ya tenemos mensajes, esto significa que por detrás laravel hizo una **query** a la base de datos con el modelo **messages** y trajo todos los modelos que tenía en la tabla.
+
+- Por un lado el nombre de la clase es importante porque laravel va a usar el nombre de la clase para buscar el nombre de la tabla Message va a resultar en una tabla messages, es decir la misma palabra en ingles en plural. 
+- Si una clase tiene más de una palabra, imaginemos si tuvieramos
+```php
+class MessageContent exteds Model {
+    // El resultado sería message_contents
+}
+```
+En donde cada palabra sería separada por guío bajo y la última palabra sería pluralizada.
+
+- Luego Laravel asume que tiene una primary key con nombre *id* eso es importante porque lo utilizaremos cuando veamos relaciones, porque va asumir siempre que una relación va a ir hacia el *id* de la otra tabla.
+
+7. Por último pudimos acceder al objeto messages usandolo como un array. Si vamos a la vista welcome veremos que accedimos a messages como si fuera un array, auque en realidad sea un objeto.
+
+8. Nosotros podemos hacer un var_dump en laravel usando **dd** donde nos imprimirá el arreglo en forma de lista descendente, mucho más facil de leer que un var_dump normal.
+
+9. En general nosotros no usamos lo objetos como un array, los usamos atraves de sus propiedades, para ello tocá ir a cambiar el acceso a los indices por las propiedades del objeto.
+
+## Trae un Solo Mensaje de la Base de Datos
+
+Vamos a usar el objeto messages y vamos a usar un controller y una vista para hacer toda la ruta completa de un recurso de la aplicación.
+
+Comencemos desde las rutas: la idea es que podamos recibir un mensaje con un id de mensaje especifico y poder mostrarlo como una página única.
+
+1. Vamos a las routes web, vamos a necesita una nueva ruta, vamos a configurar la route y podremos *messages* como prefijo y luego quiero obtener el ID del mensaje, ahora esté ID es algo que va a variar, es un párametro. Para poder decirle a laravel que en la ruta va un párametro tengo que usar la sintaxis {párametro}. Entre llaves voy a decirle el párametro que quiero recibir, y en segundo párametro de la route pondremos el controllador que aún vamos a crear.
+
+2. Vamos a ir a la terminal y vamos a crear el controlador con la ayuda de artisan, el comando sería el siguiente:
+``php artisan make:controller MessagesController``
+
+3. Ahora vamos a agregar el método que le dijimos a la ruta. 
+
+### ¿Comó recibimos el ID?
+
+Todo lo que pongamos en una ruta como párametro de ruta vendrá como párametro a esté método, particularmente como un el párametro es un id lo usamos como convención. Y aquí lo que nos queda es ir a buscar el message por id y luego una view de un message!
+
+**¿Como voy buscar un message por id?**
+
+Utilizando la clase message igual que buscamos todos los messages, pero está vez el método no es **all()** sino que es **find()**. find recíbe un párametro que es el id que estamos buscando.
+
+Y luego en la variable message ya voy a tener el mensaje por id. Recuerden siempre que utilicen un clase debemos importar el **namespace** 
+
+```php
+class MessagesController extends Controller
+{
+    public function show($id) {
+        // ir a buscar el messages por ID
+        $message = Message::find($id);
+        // una view de un messages
+        return view('messages.show', [
+            'message' => $message
+        ]);
+    }
+}
+```
+Por último me voy a imaginar como me gustaría tener un vista, en esté caso nosotros especificamos que queremos tener un una view que se llama **show** y que está dentro de la carpeta **messages**. Recuerden siempre que en las vistas utilicemos un punto Laravel lo va a tomar como una carpeta. 
+De está forma puedo agrupar todas las vistas que tienen que ver con messages en una sola carpeta.
+
+Vamos a crear un archivo Show que va extender del layout dentro de la carpeta messages y el archivo se llamará show.blade.php
+
+Si ahora yo recargó está página, ahora ya va a encontrar la vista simplemente tendremos que rellenarla con lo que queramos mostrar.
+
+### Creando Vista Show
+
+Ahora nosotros vamos a crear la vista obteniendo los datos del mensaje con el id que estámos pasando como párametro, la página quedaría de la siguiente manera.
+```html
+@extends('layouts.app')
+
+@section('content')
+<h1 class="h3">Message id: {{ $message->id }} </h1>
+<img class="img-thumbnail" src="{{ $message->image }}">
+<p class="card-text"> {{ $message->content }} 
+<small class="text-muted">{{ $message->created_at }}</small>
+</p>
+@endsection
+```
+
+### ¿Comó podemos evitar que la página fallé cuando no encuntre un objeto?
+
+Para ello vamos a utilizar una funcionalidad de laravel que se llama: **Route Model Binding** Y que nos permite usar esté párametro para ir la base de datos directamente y que si no existe eso fallé directamente laravel.
+
+Para ello está linea que tenemos aquí ``$message = Message::find($id);`` en el MessagesController la vamos a remplazar por un párametro.
+
+Le vamos a decir a Laravel: el párametro no es solamente un id, es un id de message, y eso lo hacemos pidiendole que nos de un **Mensaje**.
+```php
+class MessagesController extends Controller
+{
+    public function show(Message $message) {
+        return view('messages.show', [
+            'message' => $message
+        ]);
+    }
+}
+```
+Si yo hagó esto veremos que en el messages/1, el contenido se muestra correctamente. 
+**Porque Laravel tomo ese id=1 y dijó: yo tengo que armar un Menssage en base a esté id. Voy a hacer la query y voy a darle el objeto directamente**.
+
+Pero si nosotros ponemos un ID que no existe, entonces vamos a obtener una exception **NotFoundHttpException**. Laravel está mostrando un error que no es del Tipo de *Estás usando mál un objeto*. Ahora el error es un mensaje **404**.
+
+Laravel convierte automáticamente un erro **NotFoundHttpException** en **una página 404** que significa que: ESE RECURSO NO EXISTE. 
+
+Con estó resolvemos el problema de si existe o no existe en base de datos, laravel lo cubre por nosotros.
+
+## Crea Formularios Seguros en Laravel
+
+Vamos a empezar creando el form de un mensaje, para eso vamos a ir a la *homepage* que es ``welcome.blade.php`` donde vamos a ingregar un formulario a nuestro html.
+Inmeditamente después del jumbotron vamos a crear el form que quedaría de la siguiente manera:
+```html
+<div class="row">
+    <form action="/messages/create" method="post">
+        <div class="form-group">
+            <input type="text" name="message" class="form-control" placeholder="¿Qué estás pensando?" id="">
+        </div>
+    </form>
+</div>
+```
+Si le hacemos submit al formulario nos marcará un error ya que la ruta aún no existe, para ello vamos a crearla en nuestras rutas web.
+
+1. Agregaremos la ruta de tipo post, ya que nosotros especificamos nuestro método en el form, el cúal quedaría de la siguiente manera: 
+```php
+Route::post('/messages/create', 'MessagesController@create');
+```
+Si se fijan uso las mismas palabras entre la ruta y el controler, no es necesario pero después es más fácil recordar donde está cada uno.
+
+2. Luego si actualizó este pedido vamos a tener un error, el cúal es; *TokeMismatchException*. Ahora por más que yo cree la función **created()** en el controller y retorne un mensaje.
+```php
+public function create() {
+        return "Created!!";
+    }
+```
+
+Si yo actualizo estó va a seguir fallando, veamos el error que nos está dando laravel: dice que está verificando un token con la sigle Csrf **VerifyCsrfToken.php**.
+
+La sigla **Csrf** significa: (del inglés Cross-site request forgery o falsificación de petición en sitios cruzados).
+
+Esté es un problema de seguridad del que laravel nos protege por defecto esté problema es que alguien podría enviar un formulario a nuestro sitio sin venir de nuestro sitio, para eso es que cada vez que laravel recibe un formulario va verificar en sesión si ese formulario fue creado por nuestra aplicación. 
+
+Para que estó funcione y verificar el error que tenemos en pantalla, tenemos que agregar un **fiel()** especifico en nuestro formulario, para ello vamos a volver al código del formulario y en el *welcome.blade* dentro del formulario en cualquier lado voy a hacer *echo* de un **csrf_field()** qué es una función que proveé laravel para generar un Token en esté formulario, entonces cuando laravel reciba el formulario lo va recibir con esté token.
+```html
+<form action="/messages/create" method="post">
+        <div class="form-group">
+            {{ csrf_field() }} <!-- Token del formulario --> 
+            <input type="text" name="message" class="form-control" placeholder="¿Qué estás pensando?" id="">
+        </div>
+    </form>
+```
+3. Ahora vamos a volver a la home y veamos el html del formulario; como vemos aquí tenemos nuestro *form-group* y tenemos un input *type="hiden"* como *name="_token"* y como tiene un texto al azar value="HSDDHSDFSXZCMZLC", esté texto al azar está guardado en nuestra sesión.
+
+Entonces cuando recíba esté input laravel va a tratar de encontrarlo en la sesión y si no es el mismo va a dar el error que teníamos en pantalla **VerifyCsrfToken.php**. Si no lo encuentra en el pedido del form también dará ese mismo error. 
+
+Una vez creado el token, ya vamos a poder entrar al ruta donde enviamos la información.
+
+### ¿Comó recibimos el pedido?
+
+Para eso vamos a usar un párametro de esté pedido que no es un párametro de ruta sino que es un párametro que le podemos pedir a laravel, un objeto más que le podemos pedir a laravel, y ese objeto es el objeto **Request**
+```php
+public function create(Request $request) {
+        dd($request->all());
+        return "Created!!";
+    }
+```
+Para saber que tenemos en el objeto *Request* vamos a usar la función que vimos anteriormente que hace un *var_dump y exit = dd()* y como párametro le vamos a dar todo el contenido del request ``dd($request->all());``. Estó va a salir en esté punto y nunca va a retornar el mensaje *Created!!*.
+
+Si volvemos a refrescar la página veremos que el objeto *Request* tiene el **Token** y el **Message** esté objeto lo vamos a usar para procesar el pedido.
+
 
 
 
