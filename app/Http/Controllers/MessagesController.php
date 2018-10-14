@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Message;
+use App\Http\Requests\CreateMessageRequest;
 class MessagesController extends Controller
 {
     public function show(Message $message) {
@@ -14,8 +15,12 @@ class MessagesController extends Controller
             'message' => $message
         ]);
     }
-    public function create(Request $request) {
-        dd($request->all());
-        return "Created!!";
+    public function create(CreateMessageRequest $request) {
+        $message = Message::create([
+            'content' => $request->input('message'),
+            'image' => 'http://source.unsplash.com/category/nature/600x338?'.mt_rand(1, 100)
+        ]);
+
+        return redirect('/messages/'.$message->id);
     }
 }

@@ -586,10 +586,262 @@ Para saber que tenemos en el objeto *Request* vamos a usar la función que vimos
 
 Si volvemos a refrescar la página veremos que el objeto *Request* tiene el **Token** y el **Message** esté objeto lo vamos a usar para procesar el pedido.
 
+## Validación y creación de datos en laravel con Eloquent
 
+Qué pasa por ejemplo en Twitter cuando escribimos más de 144 cáracteres, el sistema no nos permite escribir más de eso, entonces como hacemos si en nuestro formulario alguien escribe un montón de texto, nosotros tenemos que protegernos de estó!
 
+### Validaciones en los controllers
 
+Vamos a ir al controller que recibe esté pedido App\Http\Controllers\MessagesController y en el método create que habiamos dejado anteriormente vamos a crear la validación. Para validar vamos a usar el método **validate** del **controller** de laravel, esté método ya viene en el controller que nosotros extendemos en nuestro controller.
 
+Si yo escribo ``$this->validate()`` voy a tener disponible un método que tiene 3 párametros.
+
+1. El primer párametro tiene que ser el $request que estamos recibiendo en esté método así laravel sabe que es lo que está validando.
+2. El segundo párametro es un array y se le conoce como el **array de reglas** esté array tiene la siguiente forma: 
+```php
+$this->validate($resquest, [
+
+])
+```
+Cada *key* de esté array corresponde a un field de nuestro pedido, en nuestro caso será message y luego cada *value* de esté array puede ser un string o un array de reglas, en caso de que queramos qué este message sea requerido, es decir que si no viene esté dato esto *no sea valido*, tendríamos que escribir **required**.
+
+Si nosotros escribimos un texto valido, el mensaje se envía correctamente, pero si nosotros enviamos el campo vacío entonces Laravel nos redirecciona a la misma página en la que estabamos con una variable especial; que es la variable de errores con los erros que sucedieron en ese pedido.
+
+Para poder ver está variable vamos a tener que ir al *template* de nuestra *homePage*. 
+
+Ahora en todos los pedidos tenemos disponible una variable **errors** que es una variable que contiene un objeto de tipo *Message bug* el tipo de esté objeto no nos importa mucho, lo importante van a ser los *métodos* que le vamos a poder preguntar a esté objeto para que nos diga si hay un error en el formulario.
+
+- Lo primero que vamos a hacer es crear un if en el formulario y preguntar si hay algún error con esté método ``errors->any()`` el método *any()* va a devolver si hay almenos un error en el formulario que estamos viendo actualmente.
+
+Lo que puedo hacer aquí sería iterar esté listado de errores de la siguiente manera:
+
+```php
+<form action="/messages/create" method="post">
+        <div class="form-group">
+            {{ csrf_field() }}
+            <input type="text" name="message" class="form-control" placeholder="¿Qué estás pensando?" id="">
+            @if ($errors->any())
+                @foreach ($errors as $error)                
+                @endforeach
+            @endif
+        </div>
+    </form>
+```
+En esté caso yo estaría iterando todos los errores pero a mi en este caso solo me interesa si hay un error en el mensaje. En el input de name:message, asi que vamos a aprovechar y usar otro método de esté objeto que se llama ``get()`` que recibe el name del input que queremos saber si tiene o no tiene error.
+```php
+    @if ($errors->any())
+        @foreach ($errors->get('message') as $error)
+            <div>{{$error}}</div>
+        @endforeach
+    @endif
+```
+
+En esté caso el **foreach** ``$errors->get('message')`` nos dará todos los errores relacionados al message.
+
+Ahora si nosotros intentamos enviar el formulario vacío veremos que tendrémos un nuevo mensaje de error especifico en el campo *message* que dice ``The message field is required.`` Laravel por defecto está en ingles pero nosotros podremos traducir o elegir el mensaje que queremos mostrar en esté campo.
+
+Nosotros incluso podemos ser más especificos y preguntar si hay algún *error* del *campo message* nadamas, por ejemplo con el método *has()*
+```php
+@if ($errors->has('message'))
+        @foreach ($errors->get('message') as $error)
+            <div>{{$error}}</div>
+        @endforeach
+    @endif
+```
+
+Si entre los errores hay un error en el campo message quiero mostrar todos los errores del campo message y voy a aprovechar para estilizar esté campo y se muestre como un error con la clase de boostrap ``class="invalid-feedback"`` y vamos a incluir en la clase del input la clase ``is-invalid`` cuando exista un error para ello usaremos un **if** de la siguiente manera:
+```php
+<input type="text" name="message" class="form-control @if($errors->has('message')) is-invalid @endif" placeholder="¿Qué estás pensando?" id="">
+    @if ($errors->has('message'))
+        @foreach ($errors->get('message') as $error)
+            <div class="invalid-feedback">{{$error}}</div>
+        @endforeach
+    @endif
+```
+Tanto el input como el texto tendrá una marca de que hubo un error, estó es importante para que el usuario entienda que es lo que hizo mál, si no le damos un feedback visual quizá no entienda que es lo que está pasando.
+
+Ahora agregemos una nueva regla a esté campo, pongamos que no pueda escribir más de 160 cáracteres, ¿como hacemos eso? bueno, tendremos que ir al controller y agregarle otra validación.
+
+Podemos crear un array que para mi el lo más cuerente y agregar una segunda regla a ese array, está regla es una regla de cantidad máxima de cáracteres y particularmente se llama **max** pero max es una regla parametrizada porque necesitas decirle cuantos cáraceres es el máximo. Entonces para parametrizar un regla tenemos que poner ``:`` ejemplo: ``max:144`` estó le dice al validador que esté campo tiene que tener un maximo de 144 cáracteres 
+```php
+$this->validate($request, [
+            'message' => ['required', 'max:144'],
+        ]);
+```
+
+### ¿Como hacemos para customizar estos mensajes?
+
+El validador tiene un **tercer párametro** que es un array, a esté se le conoce como el **array de mensajes** y tiene una estructura similar al array de reglas, pero en vez de ser solamante el *campo* que tiene como *key*. **La key** es una *combinación del campo* y la *regla* que estamos construyendo en esté caso podría customizar el mensaje de ``'message' => 'required'`` escribiendo ``'message.require'`` y como value le podría dar decir que texto le podría dar al usuario cuando esa regla fallé, ejemplo:
+```php
+$this->validate($request, [
+            'message' => ['required', 'max:144'],
+        ], [
+            'message.required' => 'Por favor, escribe tu mensaje',
+            'message.max' => 'El mensaje no puede superar los 144 cáracteres',
+        ]);
+```
+Está no es la única forma de validar con laravel, si nosotros tenemos mucho código de validación en los controllers, puede ser que los controllers se vuelvan muy largos, entonces lo que nos ofrece laravel es una forma de modelar el pedido y que el pedido se valide a sí mismo. **¿Como se hace esto?** atraves de algo que se conoce como los **form-request**.
+
+Vamos a crear un form-request para la creación de un mensaje, para ello voy a ir al terminal y vamos a usar *artisan* para crear el request.
+```php artisan make:request CreateMessageRequest``
+Es un nombre bien significativo de lo que vamos a hacer, si volvemos a nuestro editor lo vamos a poder encontrar en la carpeta App\Http\Request.
+
+Si entramos a el notaremos que tiene 2 métodos, el método *authorize()* y el método *rules()* que es donde vamos a poner las reglas. Por lo pronto como voy a autorizar a cualquiera voy a poner el return de autorize a true.
+
+Y luego voy a copiarme las reglas que puse en el controller a está clase, vuelvo al messagesController, y esté array de reglas que es el *segundo párametro de validate* me lo voy a llevar al CreateMessageRequest la estructura es exactemente la misma, espera el mismo array de reglas que espera el método validate.
+```php
+public function rules()
+    {
+        return [
+            'message' => ['required', 'max:144'],
+        ];
+    }
+``` 
+
+**Pero aquí estaríamos perdiendo esos mensajes. ¿Como hariamos para recuperar esos mensajes que habíamos usado en el controller?**
+
+Bueno en el *CreateMessageRequest* tenemos un 3 método que podemo *pisar* en esté request que es ``public function messages()`` y aquí tenemos que devolver el mismo array que teníamos en el controller (**array de mensajes**). Vamos a hacer un return de esté array.
+```php
+public function messages() {
+        return [
+            'message.required' => 'Por favor, escribe tu mensaje',
+            'message.max' => 'El mensaje no puede superar los 144 cáracteres',
+        ];
+    }
+```
+
+Luego lo único que quedá es decirle a Laravel que por un lado ya no queremos usar el validate y por otro lado esté request ya no es cualquier request. Ahora es un **CreateMessageRequest** que como tiene un *namespace* hay que traerlo para poder usarlo.
+```php
+public function create(CreateMessageRequest $request) {
+        
+        return "Llego!!";
+    }
+```
+
+Siempre recuerden que cuando usen una clase que no está en el mismo namespace que la clase que están usando tenemos que importarla en con *use* 
+
+Ahora estamos en la misma situación la diferencia es que nuestro controller está mucho más limpio.
+
+- Lo único que tiene es es que necesita esté tipo de request **CreateMessageRequest**.
+- Si el request falla nunca llegá a retornar la linea de abajo.
+
+## Como Guardar el mensaje en Base de datos con el Modelo de Eloquent.
+
+En la función **create()** voy a tener el request con todos los datos que acabó de recibir, entonces como le digo a eloquent que cree un nuevo mensaje usando la clase Message con el método create() y esté recibe como párametro un array de datos. Donde la **key** es la columna y el valor son los datos que queremos ponerle a esa columna:
+```php
+$message = Message::create([
+    'content' => $request->input['message'],
+    'image' => 'https://source.unsplash.com/category/nature/600x338?4'.mt_rand(0,1000)
+]);
+```
+Ahora cuando enviemos el mensaje nos dará un error de **MassAssigmentException** = (**Creación de objetos de forma masiva**). 
+
+Para qué nosotros podamos crear un objeto como lo hemos querido crear aquí tenemos que decirle que cosas proteger y que cosas no. Ahora vamos a configurar el message para que no tiré esté error. 
+
+Voy a ir a App\Message y le voy a agregar una propiedad que es una propiedad *protected* que se llama guarded. **guarded:** es una propiedad de columnas que están protegidas, si yo le doy un array vacío [] le estoy diciendo no protejas nada, pero yo podría decirle que proteger alguna o no. En esté caso no hay algo que me preocupe. 
+
+Si ven un error de **MassAssigmentException** Recuerden la propiedad: **protected guarded**.
+
+Ahora despues de haber creado el mensaje voy a hacer redireccionar al usuario a esa página con el objeto que acaba de crear de la siguiente manera:
+```php
+public function create(CreateMessageRequest $request) {
+        $message = Message::create([
+            'content' => $request->input('message'),
+            'image' => 'http://source.unsplash.com/category/nature/600x338?'.mt_rand(1, 100)
+        ]);
+
+        return redirect('/messages/'.$message->id);
+    }
+```
+
+## Seeding y Model Factories
+
+Cuando empezamos un nuevo proyecto en general no tenemos datos y casi sea un poco engorrozo crear los datos atraves de un formulario, por ejemplo si queremos probar un listado que tuviera 100 items o 500 items o ver como se comporta nuestro sistema cuando tenemos muchos datos. Crearlos 1 a 1 a mano o incluso en la base de datos podría ser bastante complicado, para eso laravel nos ofrece 2 conceptos, el concepto de model factories y el concepto de seeds. Vamos a ver como usarlos para llenar nuestra base de datos de mensajes.
+
+Comencemos definiendo que es un mensaje con el model factorie de mensajes para eso vamos a ir a la carpeta *database* y dentro de ella vamos a tener *factories* hay un solo archivo que es el ModelFactorie.php que tiene la definición ya de un usuario que te prové laravel cuando comencemos a usar usuarios.
+
+Debajo de esa definición vamos a agregar una definición para message, para crear una definición usamos la variable *factorie* y el método *define*, el método tiene 2 párametros, el primero es la clase que vamos a definir, en nuestro caso ``App\Message::class`` y el segundo párametro es una función anónima ``function(){}``, está función anónima recibirá un objeto que nos va a facilitar la creación de datos al azar, esté objeto se llama **faker**, si vemos el ejemplo que nos da laravel para user tenemos está firma. 
+```php
+$factory->define(App\User::class, function (Faker\Generator $faker) {}
+```
+Así que nosotros vamos a escribir lo mismo en nuestra función, y luego aquí dentro de está función anónima vamos a usar faker para generar estós datos falsos. Si ven está función anónima devuelve un array en el caso del *user*, así que vamos a hacer lo mismo. 
+
+Esté array tiene la misma estructura que usamos para crear un message cuando llamamos al método **create** es decir la *key* del array va a ser el nombre de la columna y el *value* va a ser el valor que queremos darle a esa columna. Pero a diferencia que lo que hicimos con create vamos a usar el *generador de fake* para crear estos datos, por ejemplo podemos decir a faker que queremos **words:**, estó le dice a faker dame palabras al azar, faker tiene un montón de métodos interesantes para generar texto; tiene **word:**(que te da 1 sola palabra), tiene **words:**(como método que le puedes pedir las palabras que quieres, y si quieres como un texto, tienes que decirle *true*, pára que lo devuelva como texto, sino lo devuelve como un array de 5 palabras), tienes **paragraph:** que devuelve un párrafo un poco más largo que la cantidad de palabras, o tienes uno que es mi favorito para el contenido que es **realText():** que es una función que devolverá texto basado en un libro, particularmente está devolviendo texto basado en *Alicia en el país de las maravillas*, vamos a dejar ese que nos va a dar una sensación un poco más realista sobre los mensajes que veamos en nuestro sitio.
+
+De otra forma lo que generá con los métodos: word, paragraph es lo que se conoce como **lorem ipsum:** el textó en latín que se usa para rellenar contenido.
+
+Y luego en la tabla ``'image => '',`` nosotros venimos usando *lorenpixel*, en esté caso *faker* tiene un método que se llama *imageUrl()* una url de *lorenpixel* así que podemos seguir usando la misma url que venimos usando en nuestros ejemplos.
+Si yo guardó esto le puedo pedir ahora a laravel que me de un mensaje basado en está definición. Para probar estó en vez de ir através del navegador, vamos a usar una herramienta de consola que nos da laravel através de artisan que se llama **tinker**.
+```php
+$factory->define(App\Message::class, function (Faker\Generator $faker) {
+    return [
+        'content' => $faker->relText(),
+        'image' => $faker->imageUrl(),
+    ];
+});
+```
+Para usar está herramienta tenemos que asegurarnos que ya la tengamos en el proyecto, desde laravel 5.4 es una *dependencia externa* tinker, así que veamos si la tenemos ya descargada, y estó lo revisamos en la lista de rquire de nuestro archivo *composer.json* 
+
+Estó ya trajo tinker por defecto pero como ven no está en laravel framework porque podrían para producción quitarlo del proyecto y no agregar ese código a su proyecto productivo, y por último para asegurarme de que esté incluido en laravel voy a ir a la configuración en la parte ``app.php`` y voy a buscar el *TinkerServiceProvider* aquí por defecto laravel ya incluyo tinker así que podemos empezar a usarlo.
+
+Recuerden estó en laravel 5.4 lo quitarón del frameword y es un paquete externo.
+en caso de no tenerlo agregado en *app.php*, agregarlo de la siguiente manera:
+``Laravel\Tinker\TinkerServiceProvider::class,``
+
+En cosola necesitamos ejecutar ``php artisan tinker``, estó abrirá lo que se conoce como un *repel*, es un *loop* entre leer, evaluar lo que estamos escribiendo, mostranos la salida y volver empezar.
+
+¿Qué quiero hacer yo?: quiero usar la definición de ``app\Message::class`` para contruir un mensaje, estó se hace atraves de una función que se llamá *factory()* la función recibe como párametro el objeto que quiero construir en nuestro caso (*App\Message::class*) y luego de llamar a la función factory puedo llamar al método **make** que me va a construir una instancia de esa clase o al método **create** que la va a construir y guardar en base de datos.
+
+Si probamos con el método make y guardo el resultado en una variable $message, vermos que el resultado de esto es un objeto message con el contenido del texto, y una imagen al azar de lorenpixel. Si yo vuelvo a ejcutar estó tendre un nuevo contenido y una nueva imagen al azar de *lorenpixel*, si yo vuelvo a ejecutar estó tendré un nuevo contenido y una nueva imagen al azar de lorenpixel, cuantas veces necesite ejecutar estó me va a generar siempre datos al azar.
+
+Ahora tratemos de crear uno de estós, cambiando el método *make*, por *create*. Ahora tengo un objeto message con contenido al azar, con imagen y además con un id en base de datos y con fecha de creación y actualización, esté objeto que acabó de crear desde tinker ya está creado en base de datos también.
+
+Y asi ahora lo busco con el comando ``App\Message::find(id)`` lo voy a encontrar en la base de datos, con el mismo contenido y la misma imagen, el mismo id y las mismas fechas.
+
+Pero no lo vamos a crear desde tinker, esto lo hicimos simplemente para interactuar con esté factory, lo que vamos a usar son los **seeds** 
+
+Ahora cierro tinker, [ctrl + c] e iré al editor nuevamente a la carpeta database, pero está vez no a factories, sino a *seeds*. 
+
+En la carpeta *seeds* tengo la clase **DatabaseSeeder()** qué tiene un solo método, el método **run()**. En esté método laravel nos ofrece una forma de separar nuestros **seeds** en diferentes clases. Por lo prontó solo usaremos el método *factorie* para crear messages así que lo voy a hacer en está misma clase.
+
+El nombre de la clase App\Message, pero si yo quiero el string de la clase le tengo que pedir la constante class de la clase message, que estó es equivalente a:
+```php
+factory('App\Message')->create(); // Estó es equivalente a la linea de abajo
+factory(App\Message::class)->create();
+
+# Pero usar los ::class es mucho más práctico para luego encontrar ese uso de esa clase es más formal
+```
+Les recomiendo siempre que puedan usar class en vez de usar el nombre en un string 
+
+Voy a hacer los mismo que acabo de hacer aquí en *tinker*:
+``factory(App\Message::class)->create();`` y estó creará un mensaje, ¿Como ejecuto estó?: de nuevo desde terminal lo haremos con el comando:
+``php artisan db:seed``
+db: es el namespace de esté comando y seed es el comando específico.
+
+Ahora efectivamente abrá creado en base de datos un nuevo mensaje, pero nosotros queremos crear cientos de mensajes y crear de a uno pero *ejecutar 100 veces db:seed* tampoco es muy práctico.
+
+Lo que podemos hacer es decirle al factory, cuantos queremos crear, se lo decimos de varias formas, podemos decirle como segundo párametro la cantidad: 
+```php
+factory(App\Message::class, 100)->create();
+```
+Ó podemos agregar antes del método create un llamado a **times()** qué esto quizá sea mas legible:
+```php
+``factory(App\Message::class)
+    ->times(100)
+    ->create();``
+```
+Van a ver que tardá un poquito más, pero si vamos a la homepages tendremos un montón de mensajes nuevos, vamos a darle refresh y veremos los mensajes. Ahora nuestra home a quedado muy grande para la cantidad de datos que tenemos. Si fueramos a generar cientos más está página no sería viable, además si nos fijamos nuestro texto quedó bastante largo, faker, por defecto generó textos de 200 cáracteres y eso superá el limite de 144 que queríamos tener, lo cuál no es realista para nuesto sitio.
+
+Vamos a corregir el factory y vamos aprovechar para ver un método que nos permite regenerar todos los datos en una base de datos recien creada.
+
+Si volvemos a database\factories\UserFactory puedo cambiar el **realText** agregandole un párametro, que sean cuantos cáracteres quiero tener como máximo, ahora podría poner 144, pero eso haría que todos los mensajes tengan 144 cáracteres.
+Algo más realista sería hacer un número al azar entre un minimo de *20* cáracteres y un máximo de *144* le vamos a pasar un **random_init()** entré 20 y 144.
+
+Ahora si yo vuelvo a ejecutar db:seed me va a crear 100 nuevos mensajes pero los anteriores van a seguir existiendo. ¿Entonces como hago para limpiar todo?: y crear los nuevos 100 mensajes.
+
+Para ello vamos a aprovechar las **migrations**, voy a volver atrás todas las migrations, volver a crear la base de datos y hacer **db:seed** todo con un solo comando. ``php artisan migrate:refresh --seed``
+
+Está opción de ``--seed`` cuando termine las migrations va a ejecutar *db:seed* automáticamente.
 
 
 
