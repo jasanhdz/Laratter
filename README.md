@@ -875,6 +875,40 @@ Si ahora hacemos refresh a la home podremos ver que nos aparecen los links a las
 </div>
 @endif
 ```
+## Autenticación de Usuarios
+
+Todos los proyectos en algún momento quieren *registrar* usuarios y permitir login de *usuarios*, vamos a ver en laravel como se hace eso.
+
+Para eso vamos a usar un comando de laravel que nos va a ayudar mucho al comienzo de la autenticación de usuarios, pero antes de ejecutar esté comando, vamos a hacer un backup de nuestro layout, porque esté comando va a pisar todo nuestro layout con un layout que nos generá laravel para el registro y login de los usuarios, entonces vamos a crear la copia llendó al layout.blade y crearemos otro archivo con la misma información del layout pero con otro nombre, estó solo es para comparar como cambian los elementos del layout con lo que generó laravel.
+
+Ahora vamos a ir a la consola y vamos a ejecutar ``php artisan make:auth``, estó hace un Scaffold; estó es como el código inicial que podemos usar para un funcionalidad. Esté comando tiene solamante opciones, no tiene ningun párametro requerido y las opciones son las mismas que siempre con la exception de ``--views`` que podemos decirle que solo nos haga un Scaffold de las *views*.
+
+Pero como estamos recíen arrancando vamos a ejecutar el párametro sin ningun párametro ``php artisan make:auth`` nos preguntará el layout y le diremos que si en caso de que lo hallá elegido bien.
+
+Ahora cuando nosotros vallamos a nuestro proyecto; nuestra home cambió, ahora tenemos un header que dice laravel con 2 botones, *login* y *registro*, luego nuestro *jumbotron* de larater y por último nuestro contenido que tendremos que corregir nuestro contenido por qué se ha roto.
+
+Laravel usa los views que nosotros tenemos y le agregá el contenido necesario para hacer login y registro ya tengó generado un registro con: nombre,email,contrseña y confirmpass.
+
+Si nosotros lo probamos nos vamos a poder *logear*, también podremos hacer *logout* y podemos hacer el *login* con los datos que *logueamos*, ahorá ya tenemos implementado con un solo comando: **login, registro e incluso recordar password**. Incluso yo tengo una opción de **Forgot Your Password?** para que me envié un email y me envié a un formulario en el que pueda cambiar mi contraseña.
+
+Ahora veamos porque se rompieron nuestro estilos, si vamos a las views en resource/views verémos que tenemos una carpeta nueva que se llama *auth* y además nuestro archivo app.blade tiene código nuevo, laravel ha cambiado nuestro layout porque el layout por defecto es app.blade *lo actualizó* con el código de autenticación *usando clases de boostrap 3* así que lo que nos quedá aquí es cambiar el código de boostrap 3 para que sea compatible con *lo que hicimos de boostrap 4*.
+
+Por ejemplo: el navegador tenemos que corregirlo para que tengamos también nuestros links, como el link al la home: donde dice laravel veremos que está usando una **variable de configuración** y por defecto usa el string Laravel, nosotros podemos corregir todas las partes que necesitemos cambiar. Luego tenemos la sección de links de Login y Register donde tenemos un *if* qué pregunta; si soy un invitado con ``Auth::guest()`` voy a mostrar Login y Register, y luego en el else si ya está logeado va a mostrar un *dropdown* con el nombre del usuario ``Auth::user()->name`` y luego un botón de *logout*.
+
+Si hacemos login nos llevá a una nueva ruta. Veamos las rutas que tenemos en la aplicación, en nuestras rutas laravel agrego:
+```php
+Auth::routes();
+Route::get('/home', 'HomeController@index')->name('home');
+```
+Nosotros no queremos la ruta del home así que la vamos a quitar y luego ``Auth::routes()`` lo vamos a dejar porque son todas las rutas que navegamos recíen, formulario: registro, login, submit todó resumido en una sola linea. Como hagó ahora para decirle que cuando me *registro* o hagó *login*, para eso tendremos que ir a los controllers que creó laravel, si vamos a controllers veremos que hay una nueva carpeta que se llama *Auth* que tiene 4 controllers nuevos. si entramos a cada uno de ellos veremos que tienen muy poco código, solo lo necesario para editar los casos más puntuales, por ejemplo hay una variable protegida que dice ``protected $redirectTo = '/home';`` la cuál nosotros vamos a cambiar a la welcome con dejando solo '/', los mismo en el RegisterController. Ahora si nosotros entramos a sitio nos redireccinará al index del sitio.
+
+Veamos que pasó con nuestro contenido, porque es qué se ve diferente. Ahora Laravel nos pisó nuestro layout.app con un layout que sirve para hacer *login* y *register* pero el problema en *laravel 5.4* es qué todavía está usando bootstrap-3, si miramos el código generado en app.blade vamos a ver que más allá de los cambios que hizó laravel, por ejemplo el title ahora lo busca como una configruración, hay un estilo que lo busca con una función *asset* e incluso también hay un *script* que *no teníamos* antes, lo qué falta aquí es el estilo de bootstrap-4, si vamos bajo de todo veremos que tampoco está nuestro script de bootstrap 4. Y si hay un srcript que usa la función *asset*.
+
+Voy a ir a mi backup y vamos a restaurar en un principio bootstrap4 y después iremos viendo como convertir estos templates al estilo de bootstrap4.
+
+**Laravel 5.4 aún usa bootstrap 3, pero Laravel 5.6 en Adelante Usa Bootstrap 4. Por lo tanto no es necesario borrar los estilos y agregar los de bootstrap 4 porque laravel ya los tiene instalados en el frameword.**
+
+
 
 
 
