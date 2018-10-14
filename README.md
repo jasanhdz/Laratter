@@ -843,6 +843,40 @@ Para ello vamos a aprovechar las **migrations**, voy a volver atrás todas las m
 
 Está opción de ``--seed`` cuando termine las migrations va a ejecutar *db:seed* automáticamente.
 
+## Paginación de mensajes 
+
+Ahora que hemos generado muchos datos en nuestra base de datos hizó que nuestra home liste todos los mensajes y se vuelva muy cargada, como hacemos con laravel para páginar esa homepage y poder mostrar de a bloques de mensajes y no todos juntos.
+
+Para eso vamos aprovechar Eloquent, vamos a agregar un método que se llama **paginate**, vamos a ir a nuestro controller de la homepage, y si vemos nosotros estamos llamando a *message::all*, all trae todos los mensajes.
+
+Nosotros queremos traer un página de mensajes, nosotros queremos traer una página de mensajes, entonces en vez de *all()* voy a llamar al método *paginate()*.
+
+Paginate tiene un primer párametro opcional que es, cuantos mensajes queremos por página, *por defecto* nos va traer *15 mensajes* por página, y nosotros debemos pasarle el número de items que queremos.
+
+Si nosotros probamos ahora el resultado, notaremos que la página nos trae los 15 mensajes que le pedimos, pero ahora la página corto a los 10 mensajes. Esto funcionó porque tanto el ``message::all()`` como el ``message::paginate()`` devuelven una colección de mensajes que se puede iterar, entonces *foreach messages* sigue funcionando y cada uno de ellos sigue siendo un objeto message, si nos fijamos laravel nos ofrece funcionalidades compatibles entre sí. 
+
+Pero hay una diferencía, el método **paginate** nos va a dar un objeto especial, que nos va a permitir mostrar los links a la página anterior y a la página siguiente, ¿como hacemos esto?: desde el **Template**. Ahora iremos a nuestra view homepage y si vemos tenemos un *forelse messages*, dentró del forelse está el código que se va a ejecutar 1 vez por cada mensaje y luego dentro del *empty* está el código que se va a ejecutar solamante cuando no hay mensajes.
+
+Entonces fuera de está estructurá voy a preguntar si tengo mensajes quiero mostrar los links a las páginas. Solo cuando uso los métodos de paginación voy a tener un método especial en la variable en esté caso messages que es **links()** el código quedaría así:
+```php
+@if (count($messages))
+        {{ $messages->links() }}
+@endif
+```
+
+Recuerden qué esto solo es posible cuando usen los métodos de paginación si nosotros hacemos una query o hacemos message::all, no vamos a tener esté método y nos va a adar un error.
+
+Si ahora hacemos refresh a la home podremos ver que nos aparecen los links a las páginas siguientes. Ahora lo que nosotros podemos hacer es darle estilos a los links para que se vean más presentables. Para ello usamos (bootstrap-4) y podemos decirselo a los links pasandoselo como párametro.
+```php
+@if (count($messages))
+<div class="mt-2 mx-auto">
+/*En la versión con laravel 5.4 ya no es necesario, pues laravel ya implementa bootstrap-4*/
+        {{ $messages->links(/*'pagination::bootstrap-4'*/) }}
+</div>
+@endif
+```
+
+
 
 
 
