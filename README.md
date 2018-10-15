@@ -1100,8 +1100,109 @@ Como le digo que quiero que lo cree con el id_user, al **create()** le paso un p
 
 Por último tenemos que tenemos que agregar el username y avatar al **seeds** ya que estos campos son nuevos y no los habiamos agregado. Para ello tenemos que ir a database\factories\ModelFactory, y en la definición que nos da laravel de user vamos a agregar el *username* y el *avatar*.
 
+## Relaciones hasMany en Eloquent
 
+Ahora que ya relacionamos los mensajes con un usuarios, ahora como hacemos para conseguir todos los mensajes de ese usuario.
 
+Vamos a ver la relación **hasMany()** que nos va ayudar a navegar esa dirección de la relación.
+
+Vamos a ir al modelo de Usuarios; lo que queremos hacer es poder pedirle a un usuario todos sus mensajes, entonces App\User, y así como antes agregamos una función al modelo de mensajes que pedía un usuario, aquí en el modelo de usuario vamos agregar una función para pedir sus mensajes, fijence como uso el plural; un usuario tiene muchos mensajes. Y luego la sintaxis es muy similar 
+``$return $this->hasMany(Message::class)`` y como párametro le vamos a decir message::class. Con estó le estamos diciendo el modelo de usuario que otro modelo que es Message tiene su id. Entonces en vez de tener una id local de message:id alguien tiene su user:id y tienen muchos de ellos.
+
+Vamos a ver como navegamos está relación, para eso voy a crear una nueva página que es la que habiamos empezado con el username de cada usuario, entonces modelemos eso:
+
+Empezaremos con las rutas donde vamos a agregar como última ruta de {username} y luego voy a querer que estó lo maneje un UsersController@show, esté controller no lo tenemos así que vamos a crearlo, para ello vamos a utilizar el comando de artisan ``php artisan make:controller UsersController``
+
+Después vamos a buscarlo y vamos agregar la función que agregamos en la ruta, como párametro vamos a recibir el username, luego aquí lo que quiero hacer es ir a buscar a ese usuario atraves del modelo de usuarios y mostrar todos sus mensajes en una vista. Entonces para ir a buscar ese usuario voy a tener que usar el modelo de usuarios pero $username no es el id.
+
+No podemos usar find($username) ya que username va a ser un texto no va a ser el número, para eso vamos a usar una query, vamos a usar el *querybuilder* de laravel, estó se usa de la misma forma referiendo al modelo que vamos a usar de Eloquent pero aquí directamente podemos usar **condiciones sql** como por ejemplo *where*, entonces si yo quiero el usuario donde el username es lo que me dieron por párametro simplemente como *primer párametro es la columna* y como *segundo párametro username*. 
+```php
+public function show($username) {
+        $user = User::where('username', $username)->first();
+    }
+```
+Aquí estamos haciendo una condición sql donde es where(columna:username = al párametro $username), y luego no quiero todos los posibles, solo quiero uno solo, para ello usaremos el método *first()* aquí deberiamos tener el usuario entonces con esto podemos hacer el return de una vista y como párametro le voy a dar el usuario.
+```php
+public function show($username) {
+        $user = User::where('username', $username)->first();
+        return view('users.show', [
+            'user' => $user,
+        ]);
+    }
+```
+
+Ahora vamos a crear la vista, recuerden que programamos haciendo lo que se conoce como **wishfoundprograming**: quiero escribir el código que despues quiero tener, entonces a medida que lo escribó lo que no tengo lo imagino y cuando terminó de escribir lo que estoy haciendo digo; que imagine, que es lo que no tengo todavía y voy y lo creo.
+
+Entonces si quiero tener una vista users.show tengo que crear una carpeta en resources\views\users\show.blade.php esté archivo va a extender nuestro layout y luego en la seccion content escribiremos todo el contendio de esté archivo.
+
+Con esto ya tenemos la ruta, el método del controller, y la vista que muestra esté contenido y además agregamos una query para ir a buscar a esté usuario.
+
+Ahora lo que queremos mostrar es el nombre del usuario y sus mensaje, ahora empezaremos mostrando su nombre en la section, no olvidemos de usar bien el namespace en el Controller.
+``<h1>{{$user->name}}</h1>``
+
+Ahora vamos a lo que nos interesa, ¿como mostramos los mensajes de esté usuario?
+
+En el modelo dijimos que tenemos una función messages, entonces para usar esa función desde el objeto $user le voy a pedir la propiedad messages, es decir si aquí quiero mostrar todos los mensajes voy hacer foreach($user->messages as $message) al decirle user->messages va a saber que estamos accediendo va a saber qué estamos accediendo a la relación  que definimos en la función message y luego por cada mensaje vamos a incluir messages.message
+```php
+@extends('layouts.app')
+@section('content')
+    <h1>{{$user->name}}</h1>
+<div class="row">
+  @foreach ($user->messages as $message)
+    <div class="col-6">
+      @include('messages.message')
+    </div>
+  @endforeach
+</div>
+@endsection
+```
+Porque ya tenemos la forma en la que mostramos los mensajes no vamos a hacerla de nuevo aquí. Ahora podemos ver todos los mensajes de cualquier usuario que selecionemos, algo interesante sería incluso poder ver la fecha en la que se crearon los mensajes y poder ordenarlos incluso por fecha y poder poner los más nuevos arriba de todo.
+
+1. Primero agreguemos la fecha de la creación del mensaje al template
+
+Si nos fijamos todos los mensajes está siendo creados en la misma fecha para eso deberíamos cambiar el **seeds** para que generé fechas al azar en las fechas de creación. 
+
+Vamos a hacerlo en la definición del model factory directamente en la definición del mensaje, vamos a decirle que la fecha de creación es un dateTimeThisDecate() la cúal es una fecha al azar en está decada y luego el updated_at va a ser lo mismo.
+```php
+$factory->define(App\Message::class, function (Faker $faker) {
+    return [
+        'content' => $faker->realText(random_int(20, 144)),
+        'image' => $faker->imageUrl(600, 338),
+        'created_at' => $faker->dateTimeThisDecade,
+        'updated_at' => $faker->dateTimeThisDecade,
+
+    ];
+});
+```
+Para que esto tenga efecto tenemos que volver a generar mensajes, así que regeneremos nuestra base de datos con el comando:
+``php artisan migrate:refresh --seed``
+
+Pero no los estamos ordenando, ahora como ordenamos primero la *homepage* y después como ordenamos cada usuario. Para editar el query que hacemos en la home deberíamos ir al controller de la home *App\Htpp\Controllers\PagesControllers* y aquí tenemos paginado de 10, si queremos ordenar los mensajes como que los últimos sean los primeros, es decir que los que se crearon más recientemente son los que primero aparecen podemos usar la función ``latest()`` antes de pedirle el paginado. eso quiere decir que va a ordenar por creación decendiente.
+```php
+class PagesController extends Controller
+{
+    public function getHome() {
+        $messages = Message::latest()->paginate(10);
+        
+        return view('welcome', [
+            'messages' => $messages,
+        ]);
+    }
+
+}
+```
+
+Si ahora actualizó la home veremos que ahora tenemos mensajes de diferentes fechas ordenados. Pero en el caso de una relación nosotros podemos preconfigurar una relación para que siempre esté ordenado de una misma forma.
+
+Para eso vamos a ir al modelo de usuario y ala relación de *hasMany()* le vamos a decir que se ordene por creación de forma decendente
+```php
+public function messages() {
+        return $this->hasMany(Message::class)->orderBy('created_at', 'desc');
+    }
+```
+Ahora si yo navego a la página de un usuario veremos también sus mensajes ordenados decendentemente.
+
+Ahora ya aprendimos a relacionar un usuario con todos sus mensajes :)
 
 
 
