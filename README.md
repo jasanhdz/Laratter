@@ -980,11 +980,125 @@ Tendremos que ir al **RegisterController** y agregarlo en la función ``create()
 
 Ahora si vamos a hacer una prueba más y verificar si la image se está creando. **Recordemos que cada elemento que quieramos guardar en la base de datos de nuestro formulario tendremos que agregarlo a nuestro fillable en el modelo user**
 
+## Relaciones belongsTo
 
+Ya hemos usado mensajes y usuarios ahora queremos conectarlos definiendo una relación entre cada mensaje y su dueño o su usario que lo escribió, para eso vamos a usar las relaciones de Eloquent. Comencemos desde la base de datos; paara poder decir que un mensaje pertenece aún usuario tendría que tener cada mensaje el id que lo escribió para eso entonces vamos a crear una **migration** que agregue el user_id a la tabla de mensajes.
 
+Vamos a ir al terminal y vamos a agregar una nueva *migration* que se va a llamar **add_user_id_column_to_messages_table** recuerden que cuando es una migration de edition le tenemos que pasarle el argumento --table [nombredelatabla] 
 
+Ahora vamos a buscar esa migration entre las migrations del proyecto, una vez ahí vamos a agregar una nueva columna, está columna va a ser un entero, sin signo y luego lo que vamos a hacer es crear una clave foranea, eso es atráves de la función *foreign()* pasandole la columna y luego anidando varios llamados, el primero que vamos a llamar es a quien referencia, esto quedaría asi:
+```php
+public function up()
+    {
+        Schema::table('messages', function (Blueprint $table) {
+            $table->integer('user_id')->unsigned();
 
+            $table->foreign('user_id')->references('id')->on('users');
+        });
+    }
+```
+Notemos que la sintaxis que propone laravel es muy legible. ``foreign->('user_id')->references('id')->on('users')`` nos quedá caso redactado.
 
+Y luego en el ``down()`` tenemos que hacer drop de la clave foranea y luego hacer drop de la columna entera. Para hacer drop de una clave foranea tenemos 
+``$table->dropForeign('mesages_user_id_foreign')`` Tenemos que pasarle el nombredelaTabla_NombreColumna_alUltimolaPalabra:foreign. 
+
+Luego hacemos el drop de la columna con ``$table->dropColumn('user_id');``
+```php
+public function down()
+    {
+        Schema::table('messages', function (Blueprint $table) {
+            $table->dropForeign('messages_user_id_foreign');
+
+            $table->dropColumn('user_id');
+        });
+    }
+```
+
+Ahora vamos a probar está migration y vamos a probar que pasá cuando le ejecutamos.
+```php artisan migrate``
+
+Pero ahora tenemos un error pues estamos creando una columan con una clave foranea, pero esa columna no tiene datos, estó en generál son las **migrations** que nos hacen volver todo y empezar con una base de datos vacía. Si nosotros tuvieramos que agregar estó en un sitio productivo sería un poco más complicado: tendríamos que empezar haciendola null, luego agregarle a mano quizás para cada mensaje quien es el dueño realmente, *pero como estamos todavía dessarollando esté proyecto vamos aprovechar para hacer un drop de todas las migrations y empezar de cero*.
+
+Lo vamos a hacer con el comando ``php artisan migrate:reset`` lo que va borrar toda la base de datos, y si corremos ``php artisan migrate`` va a empezar de cero pero como no hay datos no hay problema que esa columna tenga una clave foranea. 
+
+Ahora veamos como quedó en el *workbench*, ahora si hacemos un from de messages veremos que tenemos el user_id pero ahora en todolugar donde estemos recibiendo mensajes tendríamos que poder recibir el usuario que los crea. Veamos donde creamos mensajes; por un lado creamos mensajes en el controller que recíbe el formulario de creación de mensajes App\Htpp\Controllers\MessagesController, en la función ``create()`` está llamando a messages create. 
+
+### ¿Qué hacemos para saber que usuario esta queriendo crear este mensaje?
+
+Bueno pues a todos los objetos request que estamos usando aquí le podemos pedir el usuario logeado y además tendríamos que hacer que esté formulario no se pueda usar si nos estás logeado, entonces 2 pasos; por un lado proteger esté espacio solo para usuarios logeados y por otro lado pedir el usuario logeado en este punto, si yo quisiera proteger esa ruta para solo usuarios logeados en las rutas tendría que decir que el **post** a messages create tiene un ``->middleware('auth')`` que se llama **auth**. 
+
+Estó significa que antes de llegar al controller va a existir una capa que se le llama ``middleware()`` y nos va a proteger ese pedido que particularmente la capa *auth* checkea que el usuario esté logeado. Si no está logeado va a volver atrás ese pedido.
+
+Ahora sí podemos garantízar en el controller que ese pedido tiene un usuario logeado, aquí en el ``create()`` puedo obtener el usuario logeado atráves de *$request->user()* ``$user = $request->user();``. Y luego dentro del Message::create le podría decir que el 'user_id' es el $user->id.
+
+Ahora vamos a crear un usuario nuevo y vamos a crear un mensaje de ese usuario, en principio como borramos toda la base de datos, nos vamos a registrar de nuevo para poder crear un mensaje.
+
+Ahora ya nos registró el mensaje, tiene el id de 1 y tiene una imagen al azar y el texto, pero no dice de que usuario, así que aprovechemos y creemos ese contenido al template de los mensajes, ademas al ser el único mensaje es el único que vemos en la home, pero tampoco aquí dice el nombre del usuario.
+
+Para no hacer el trabajo en 2 lugares voy aprovechar y voy incluir un template dentró de otro, voy a sacar el html a un archivo aparte que le voy a llamar mensaje y luego voy incluir ese mismo archivo desde 2 puntos diferentes.
+
+Vamos a empezar buscando el html de welcome y vamos a quitar la parte donde ponemos la images y la vamos a llevar a un nuevo tamplate que estará en la carpeta de messages con el nombre de message.blade.php.
+
+A esté archivo los vamos a llamar en el template usando la función ``@include('messages.message')`` si lo probamos ahora todo va a seguir andando bien.
+
+Ahora a esté template vamos a añadirle el user que lo está creando usando el id de la siguiente forma: 
+```php
+<img class="img-thumbnail" src=" {{$message->image}} " alt="">
+<p class="card-text">
+  <div class="text-muted">Escrito por {{$message->user_id}}</div>
+    {{ $message->content }}
+    <a href="/messages/{{ $message->id }}">Leer más</a>
+</p>
+```
+Pero estó no es suficiente pues nosotros queremos tener el usuario real no solamente el id para ello **vamos a relacionar desde el modelo a un user con un message**. Vamos a ir al modelo de message y voy a agregar una función; la función que tiene que ser publica se va a llamar *user()* y lo que va a hacer está función es devolver es ``return $this->belongsTo(User::class);``
+
+¿Qué significa estó?
+
+Está función le está diciendo a laravel; - cuando te pidan un usuario tienes una relación con ese usuario, tienes una relación a la que tu perteneces a ese usuario.
+La relación de pertenencia que define laravel es que va a buscar en esa tabla el id del usuario en esté caso el id externo y va a relacionarlo con otro modelo. Nosotros le aclaramos que modelo es con ``User::class`` y le decimos que tipo de relación usando ``$this-belongsTo()``
+
+Ahora yo en el tamplate en vez de acceder al user_id que tengo en mi tabla voy acceder a la propiedad user y luego a una propiedad interna de eso, es decir una vez que accedo a la *propiedad user* tengo un *objeto user* y le puedo pedir las columnas de la tabla user por ejemplo: **name**. estó quedaría así:
+```php
+<img class="img-thumbnail" src=" {{$message->image}} " alt="">
+<p class="card-text">
+  <div class="text-muted">Escrito por <a href="/{{ $message->user->username }}">{{$message->user->name}}</a></div>
+    {{ $message->content }}
+    <a href="/messages/{{ $message->id }}">Leer más</a>
+</p>
+```
+No solamente trajo el mensaje de la base de datos sino cuando al mensaje le pedí su usuario, fue a la tabla de user, trajó al usuario con id:1 y me permitió mostrar el nombre de ese usuario, incluso nosotros pusimos un link al usuario en particular que veremos también cuando hagamos la página de users, pero a mi me gustaría así como hace twitter por hacer un '/{{user}}' 
+
+Por ultimo llevemos esté template al otro lugar donde mostramos los mensajes, nosotros tenemos view\messages\show, donde está el template que muestra ese mensaje en particular, nosotros vamos a dejar solo el h1:id y en vez de volver a repetir el código igual nosotros vamos a incluir el template message como con el welcome.
+```php
+@extends('layouts.app')
+
+@section('content')
+<h1 class="h3">Message id: {{ $message->id }} </h1>
+@include('messages.message')
+@endsection
+```
+
+## Creando Mesajes con usuario asociado.
+
+Ahora nos falta un lugar donde estemos creando mensajes, si recordamos estabamos creando mensajes en los **seeds**, estabamos generando una base de datos falsa atráves de los *seeds*. Aprovechemos esté momento para modificar los seeds y agregar los mensajes con un usuario asociado, voy a ir a nuestro *database\seeds\DatabaseSeeder* y verémos que estabamos creando messages de a 100, lo que nos falta aquí es crear usuarios y para cada usuario crearle mensajes.
+
+Entonces lo que vamos hacer es decirle a Laravel que quiero crear usuarios con un factory(App\User::class), vamos a crear 50 usuarios e inmediatamente despues le voy a decir each. **Each:** es como un *foreach* pero es una función que recibe una function anónima. Entonces está función anónima va a recibir por cada usuario que se cree el **usuario** para agregarle cosas.
+```php
+factory(App\User::class, 50)->create()->each(function(App\User $user) {
+    factory(App\Message::class)
+    ->times(20)
+    ->create([
+        'user_id' => $user_id,
+    ]);
+});
+```
+Y dentro de está función anónima voy a tener a un **usuario** y a ese usuario le puedo crear la cantidad de mensajes que quiera, y para cada usuario voy a crear 20 mensajes.
+
+Como le digo que quiero que lo cree con el id_user, al **create()** le paso un párametro; como párametro le paso un array donde quiero que reciba el 'user_id' => $user->id 
+
+**Repasemos: hicimos un factory de user y por cada uno de esos users que creamos usamos el factory para crear 20 mensajes de ese usuario.**
+
+Por último tenemos que tenemos que agregar el username y avatar al **seeds** ya que estos campos son nuevos y no los habiamos agregado. Para ello tenemos que ir a database\factories\ModelFactory, y en la definición que nos da laravel de user vamos a agregar el *username* y el *avatar*.
 
 
 
