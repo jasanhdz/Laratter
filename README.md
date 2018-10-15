@@ -908,6 +908,80 @@ Voy a ir a mi backup y vamos a restaurar en un principio bootstrap4 y después i
 
 **Laravel 5.4 aún usa bootstrap 3, pero Laravel 5.6 en Adelante Usa Bootstrap 4. Por lo tanto no es necesario borrar los estilos y agregar los de bootstrap 4 porque laravel ya los tiene instalados en el frameword.**
 
+## Modificar modelos de usuarios 
+
+Vamos a agregar 2 columnas al usuario, por un lado vamos a agregar un nombre de usuario que lo va a identificar a ese usuario puntualmente con respecto a los otros y por otro lado vamos a agregar un avatar, para que cada usuario tenga una imagen asociada.
+
+Empecemos desde la migration, voy a ir al terminal y voy a crear una nueva migration para agregar esas 2 columnas a la tabla de usuarios.
+``php artisan make:migration add_username_and_avatar_to_users_table``
+Estó es muy especifico para poder leerlo y saber que hace, no es necesario hacerlo así de largo que sea así de largo pero esta bueno para que el archivo quedé bien claro y saber lo que está haciendo y por último le vamos a poner la opción ``--table users`` y le vamos a decir que vamos a estar editando la tabla *users*. Ahora que nos creo una migration vamos a editarla.
+
+En el método app voy a agregar los 2 campos(columnas). Por un lado voy a gregar un ``string('username')`` por un lado voy a especificar que esté username se ``->unique()`` va agregar una constain, va agregar la necesidad de que si o si sea único atraves de la tabla. y por otro lado, otro ``string('avatar')->nullable()`` esté particularmente será *nullable:* que significa opcional. 
+```php
+public function up()
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('username')->unique();
+            $table->string('avatar')->nullable();
+        });
+    }
+```
+Recordemos que en las migratios tenemos que escribir el ``down()`` entonces en el dow voy hacer **drop** de esas 2 columnas.
+```php
+public function down()
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('username');
+            $table->dropColumn('avatar');
+        });
+    }
+```
+Ahora vamos a guardar los cambios y vamos a ejecutar está *migration*.
+``php artisan migrate``
+
+Veamos en nuestra base de datos como quedó esto, veamos el workbench, ahora tenemos la tabla users actualizada con *username* y *avatar* y si hacemos un select From users veremos que ya tenemos un usuario creado con un *username* vacío y un *avatar* 
+
+La idea es que ahora editemos los formularios para qué siempre sea necesario que ingresen ese *username*, entonces volvamos a nuestro editor, vamos a las view en el formulario de registro y vamos agregar un nuevo *form-group* para el **username**.
+
+Ahora lo que tenemos que hacer es ir al controller que va a recibir esté pedido si recuerdan cuando vimos las rutas de **auth** vimos que había un sola linea que decía ``Auth::routes``, entonces **¿donde están los controllers que reciben estos pedidos?**.
+
+Estos controllers están en la carpeta de controllers\auth, y es muy fácil identidicar cual es el que necesitamos particularmente es el RegisterController, si recuerdan vimos que es muy corto el controller, es porque solamente lo necesario para que podamos editar cosas puntuales de esté flujo de creación de usuarios.
+
+Lo que nos interesa aquí es la validación de usuarios, es decir si queremos que sea *requerido* tendremos que *editar el validador*. Y la creación del usuario, que si queremos que el usuario se cree con esté usename se lo tenemos que pasar a ala función de create, vamos a agregar primero la *validación* 
+``'username' => 'required|max:255',``
+
+Y luego cuando cree el usuario quiero darle su username
+``'username' => data['username'],``
+
+Bien ahora vamos a intentar registrarnos con un nombre y un username.
+
+Ahora podemos notar que tenemos un error, nos dice que el username no tiene un default:value, significa que por más que le dijimos que lo cree no lo paso al modelo, si recordamos Laravel nos protege por defecto sobre que podemos pasarle al modelo cuando creamos, entonces lo que nos falta es decirle al modelo de usuarios que podemos pasarle un username también.
+
+Para ello vamos abrir el modelo de usuarios en App\user.php. Y aquí tenemos otra opción que no vimos antes, antes habíamos visto el guarded, aquí laravel usa $**fillable**, esté el opuesto a **guarded**, si cuando quieres proteger algo le dices a guarded que proteja ese campo puntual, en fillable le está diciendo que solo esos campos son los que puede rellenar. Es exactamente el mismo concepto pero visto de forma inversa, entonces aquí tengo que agregar el username al modelo con *fillable*.
+
+Si vuelvo al sitio y renvío el formulario, ahora si creará al usuario lo registrará, si vamos a la base de datos podemos ver nuestro nuevo registro. 
+
+### que pasa si yo quiero crear otro username que ya esté en la base de datos?
+
+Si ahora yo intento registrarme con algún username que ya tenga en la base de datos nos marcará un error, pues al agregar el campo lo pusimos que debería de ser **unique** Tendríamos que hacer algo para que no fallé y el usuario pueda ver que no puede usar ese username.
+
+Si yo repito el mismo formulario el error que nos marcará un **errorSql**. Para mostrarle al usuario de que el username ya está tomado tenemos que hacer algo en el validador antes de que valla a la base de datos, la database está protegida y no va permitir que se escriba otro dato duplicado sin embargo tenemos que validarlo.
+
+Entonces vamos a ir al **RegisterController** y vamos a agregar en el validador que el username además de ser required y de max:255, es unique:users
+```php
+'username' => 'required|string|max:255|unique:users',
+```
+También debemos hacer un feedback del error en el template, para que el usuario sepa que tuvo un error con el *username*.
+
+Ahora podemos agregar el avatar también, para eso no vamos a agregarlo en el formulario simplemente vamos a harcodear por ahora una imagen al azar. 
+
+Tendremos que ir al **RegisterController** y agregarlo en la función ``create()`` 
+``'avatar' => 'http://lorempixel/300/300/people?'.random_int(1, 100),`` 
+
+Ahora si vamos a hacer una prueba más y verificar si la image se está creando. **Recordemos que cada elemento que quieramos guardar en la base de datos de nuestro formulario tendremos que agregarlo a nuestro fillable en el modelo user**
+
+
+
 
 
 
