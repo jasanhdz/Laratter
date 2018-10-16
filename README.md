@@ -1204,6 +1204,303 @@ Ahora si yo navego a la página de un usuario veremos también sus mensajes orde
 
 Ahora ya aprendimos a relacionar un usuario con todos sus mensajes :)
 
+## Relaciones belongsToMany en Eloquent
+
+Ahora vamos a implementar que un usuario siga a otro usuario y que cada usuario sepa quién lo sigue, para eso vamos a agregar una relación entre la clase usuario y sí misma através de **belongsToMany**. 
+
+Para empezar vamos a necesitar una tabla intermedia entre cada usuario y otro usuario, porque si yo sigó a varios usuarios y a su vez a mi me siguen varios usuarios, yo no puedo tener el id de cada uno y cada uno de ellos pueden tener mi id. Así que vamos a construír una tabla intermedia que tenga el usuario y el usuario al que sigue, es decir el follow.
+
+Vamos a hacer la migration de esa tabla, vamos a ir al terminal como de costumbre y vamos a escribir ``php artisan make:migration create_followers_table --create followers``
+
+Acabamos de crear la tabla followers. *Estó sale del esquema estándart de laravel en el que cuando haces una relación entre 2 tablas con una tabla intermedia, deberías nombrar una tabla como una de las tablas guión bajo la otra tabla:* **tabla1_tabla2** pero hacer una tabla que se llamé **user_user** es poco significativo tiene poco sentido, entonces me parece más cuerente nombrar la tabla como **followers**. Vamos a ver como acomodamos el modelo para que estó funcione.
+
+Primero editemos la migration para que haga lo que necesitamos crear, vamos a ir a ``database\migrations\create_followers``. Ahora está migration **no va a tener un id propio** sino que vamos a crear un **id compuesto entre el usuario y el usuario qué es seguido**. 
+
+Entonces vamos a hacer un integer('user_id') y va a ser unsigned(). Vamos a crear otro integer('followed_id') también no va a tener signo.
+
+Así que con **estós 2 integers vamos a hacer una primary-key** qué es la combinación de **user_id y followed_id**. Y a su vez *cada uno de ellos va a aser un foreign*. También vamos a dejar los timestamps para saber cuando empezaste a seguir a esa persona.
+```php
+$table->integer('user_id')->unsigned();
+$table->integer('followed_id')->unsigned();
+$table->primary(['user_id', 'followed_id']);
+$table->foreign('user_id')->references('id')->on('users');
+$table->foreign('followed_id')->references('id')->on('users');
+$table->timestamps();
+```
+En la ``public function down()`` no tenemos que hacer nada porque si existe la tabla followers le hace un **drop**. 
+
+Ahora ejecutemos está migration ``php artisan migrate`` y ahora si miramos el esquema en base de datos tendremos una nueva tabla followers con columnas; user_id, followed_id, created_at y upadted_at. Y la **primary-key es la combinación de** (user_id, followed_id).
+
+Estó significa también que no se puede repetir, **no puedo tener al mismo usuario siguiendo 2 veces al mismo usuario**.
+
+### Moficando el modelo usuario para crear relaciones.
+
+Veamos ahora como podemos hacer en el modelo para que se ralacione un usuario con otro.
+
+Vamos a ir a la carpeta ``App\User`` y aquí vamos a configurar una nueva relación 
+```php
+public function follows() {}
+```
+Voy a ocupar la palabra *follows* para preguntarle a un usuario que otros usuarios sigue, entonces estó va a significar una relación **belongsToMany()**. En donde la clase es *User::class*. Aquí también vamos a aclarar *la tabla* y *la foreing-key* y la *reladate-key*.
+```php
+public function follows() {
+    return $this->belongsToMany(User::class,'followers', 'user_id', 'followed_id');
+}
+```
+Entonces de está forma le estoy diciendo: 
+- Busca los otro usuarios en donde yo soy el user_id y los follows son los otros. Es decir yo los sigo a ellos.
+
+A su vez vamos a aprovechar para hacer otra relación qué es la inversa, vamos a poner followers
+```php
+public function followers() {}
+```
+Está relación va a ser **belongsToMany()** va a ser la misma relación entre 1 usuario y otro usuario con la misma tabla *followers* pero leída al revés.
+```php
+public function followers() {
+    return $this->belongsToMany(User::class,'followers', 'followed_id', 'user_id');
+}
+```
+Es decir yo soy el qué es seguido, dimé quienes son los que me siguen. De está forma yo le puedo preguntar a un usuario cualquiera de las 2 cosas; tanto *quienes lo siguen* como *a quién sigue*.
+
+### Listado de usuarios que sigó
+
+Implementemos un listado de usuarios que yo sigo, para eso vamos a tener que crear una ruta, vamos a crear la ruta de el '/{username}/follows' y la vamos a enviar UsersController@follows.
+
+Ahora vamos al controller de users, donde vamos a crear la función *follows* que recibe el ($username). En está función tengo que buscar ese *username* así que vamos a crear la misma query que hicimos antes:
+```php
+public function follows($username) {
+    $user = User::where('username', $username)->first();
+}
+```
+Luego vamos a tener la oportunidad de hacer un *re-factory* de todo estó y no tener que duplicar todo el código.
+
+También vamos agregar un return de la vista con un array donde le paso el user: ``return view('users.follows', ['user' => $user])`` 
+
+Ahora vamos a crear la vista en ``resources\views\users`` y aquí vamos a crear el archivo *follows.blade.php* 
+```php
+@extends('layouts.app')
+
+@section('content')
+   <h1>{{$user->name}}</h1><br> 
+  <h3>A esté Usuario lo siguen:</h3>
+  <ul>
+  @foreach ($user->follows as $follow)
+    <li>{{ $follow->username }}</li>   
+  @endforeach
+  </ul>
+@endsection
+```
+Ahora vamos a ver si está relación funciona, vamos a ir a página del '/{username}/follows' y verémos que esté usuario no sigue a nadie, porque creamos la tabla pero aún no estamos siguiendo a nadie, qué tal si ahora hacemos un par de **seeds** modificamos nuestros usuarios para que sigan a otros usuarios al azar. 
+
+Vallamos a ``database/seeds`` aquí lo que habíamos echo erá crear 50 usuarios y por cada 1 de ellos crear 20 mensajes. Vamos a cambiar esté código para que por un lado tengamos eso 50 usuarios en una variable y luego por cada 1 de esos usuarios sigamos a 10 usuarios al azar. 
+ 
+1. Creamos una variable $users para guardar el resultado del función create.
+2. Luego vamos a usar la variable $users hasta ahora no agregamos código, solo guardamos en una variable el resultado de la función create y luego uso esa variable.
+3. Ahora dentro de la función anónima que hace algo por cada user, voy a darle acceso a la variable externa Users para agregar al listado de follows esos users.
+4. Al $user le voy a pedir su relación con follows() se lo pidó como método porque voy a modificar la relación. No quiero saber aquién sigues quiero modificar la relación.
+5. Y le voy a agregar usuarios al azar estó se puede hacer sincronizando esa relación con un array de usuarios, además voy aprovechar un método de la *collection de users* que se llama *random* ese método me dar efectivamente la cantidad de usuarios que yo le pidá al azar el cuál le pasaremos como párametro.
+
+```php
+public function run()
+    {
+        $users = factory(App\User::class, 50)->create();
+        
+        $users->each(function(App\User $user) use ($users) {
+            factory(App\Message::class)
+                ->times(20)
+                ->create([
+                    'user_id' => $user->id,
+                ]);
+            $user->follows()->sync(
+                $users->random(10)
+            );
+        });
+    }
+```
+Tenemos 50 usuarios creados y los tenemos en una colección en la variable usuarios, y luego por cada uno de ellos creamos sus mensajes y además le hacemos seguir a 10 usuarios al azar. 
+
+ahora ejecutamos el comando ``php artisan migrate:refresh --seed`` para tirar la base de datos, volver a crearla y ejecutar la creación de los datos aleatorios usando --seed. Cuando el comando terminé podemos mirar los resultados en '/{username}/follows' Solamante lo podemos ver, aún no tenemos links ni nada pero podemos trabajar en el html de esté listado.
+
+Ahora ya sabemos como navegar una relación entre usuarios cuando tanto un usuario tiene muchos usuarios como cuando cada uno de ellos también puede ser seguido por muchos otros, vamos a crear una interacción en la web para que el usuario logeado pueda seguir a otro usuario.
+
+## Agregando Follow hacía otro usuario.
+
+Primero vamos a ir al template en donde tengo la página del usuario estó es ``resources/views/users/show``, aquí estamos mostrando el nombre del usuario y una row con sus mensajes. Aquí vamos a implementar un formulario con un button que digá **follow**. Entonces un simple botón dentro de un formulario qué haga que el usuario actual sigá al usuario que estamos mirando.
+```html
+<form action="/{{$user->username}}/follow" method="post">
+  <button type="submit" class="btn btn-primary">Follow</button>
+</form>
+```
+Vamos a crear la ruta en routes/web 
+```php
+Route::post('/{username}/follow', 'UsersController@follow');
+```
+Ahora si en el UsersController podemos implementar la función *follow* qué recibirá el (usarname, Request $request) y lo que hará primero como vinimos haciendo es buscar un **user** por **username** y luego le agregará el usuario correspondiente al usuario logeado.
+
+Vamos aprovechar esté momento para crear una función privada **findByUsername($username)** así no seguimos repitiendo la linea del la consulta *sql*. 
+```php
+private function findByUsername($username) {
+        return User::where('username', $username)->first();
+    }
+```
+Y ahora la podemos usar en todas las funciones en las que la necesitemos, de esta forma no duplico todo el código.
+
+Si recordamos el usuario logeado está en el $request, si le pido al request que me de el usuario me debería de dar el usuario logeado. ``$me = $request->user();``, entonces lo único que quedá es decirle al usuario logeado que de sus *follows* haga un *attach()* es decir agregé el usuario en cuestión. ``$me->follows->attach($user);``. Lo qué quedá es redirigir al usuario a la página que está siguiendo ya gregar un mensaje de éxito. ``return redirect("/$username")->widhtSuccess('siguiendo');``
+
+Ahora vamos a ir a resourse/views/show y aquí dentró del formulario, vamos a hacer un 
+```php
+@if(session('success')) <span class="text-succes">{{session('success')}}</span>
+```
+Estó es muy útil cuando queremos mostrar un mensaje solo a la vuelta de un pedido.
+
+Entonces esté formulario va a hacer un submit a '/{{username}}/follow' y luego si todo sale bien del lado del server nos va a redirigir a la misma página, pero está vez en la sesión tendremos el mensaje de éxito.
+
+Si probamos elegir a un usuario, tendremos que estar logeados, ahora podemos seguir a algún usuario, si nos aparece un error de **TokenMismatchException** recuerdén que nos falto poner el token adentro del formulario, para ello lo único que haremos es poner ```{{ csrf_field() }}`` Ahorá podemos seguir al usuario correctamente.
+
+En esté apartado empezamos a usar la relación **belongsToMany** entre 2 usuarios, un usuario sigue a muchos usuarios y a su vez muchos usuarios pueden ser seguidos por muchos otros.
+
+## Implementación de Unfollow
+
+En la parte anterior implementamos como un usuario puede seguir a otros usuarios vamos a terminar con esa funcionalidad agregando como dejar de seguir a alguien y como listar a quienes sigues como quien te sigue.
+
+Empecemos con el botón de follow, en esté momento tenemos un botón que muestra a cualquier usuario logeado que puede seguir a otro usuario pero en realidad el botón no esta checkando si el usuario está o no logeado. Lo cúal es un primer error, no puedo seguir a nadie si no estoy logeado y por otro lado si ya lo sigó no debería de ver el botón de seguir nuevamente, asi que vamos a cambiar esas cosas.
+
+vamos a ir ``resources/views/user/show`` y aquí donde estoy mostrando el form, vamos a crear un par de condicionales por ejemplo si está logeado:
+```php
+@if (Auth::check())
+<form action="/{{$user->username}}/follow" method="post">
+  {{ csrf_field() }}
+  @if (session('success'))
+      <span class="text-success">{{ session('success') }}</span>
+  @endif
+  <button class="btn btn-primary">Follow</button>
+</form>
+@endif
+```
+Luego voy a checkar si yo como usuario logeado ya sigó a el usuario actúal; a la variable $user. Puedo pedirle al auth::user() se lo puedo preguntar directó a la relación o puedo crear un método true o false. 
+
+Lo más simple sería crear un método al usuario que me responda especificamente lo que necesito. Para ello vamos a crear un método: **isFollowing** pandole el usuario actual. Luego vamos a poner un *else* para saber que hacer cuando no lo sigá, entonces esté método aún no existe ahora vamos a crearlo.
+
+Vamos a ir a ``App\User`` y vamos a escribir un método que se llamé **isFollowing** y que recíba un User.
+
+Aquí vamos a devolver el resultado de pedirle a la relación del usuario y sus seguidores si contiene al usuario en cuestión. Esté método va a devolver *true* si ese usuario está dentro de los usuarios que ya sigó y va a devolver *false* si no lo está.
+
+```php
+public function isFollowing(User $user) {
+    return $this->follows->contains($user);
+}
+```
+Ahora vamos a ir devuelta al formulario y vamos a corregir estó; quiero un formulario que muestre el botón de follow cuando al usuario no lo sigó y luego en el if quiero un formulario, muy parecido pero en vez de ir a ``'/{{$user->username}}/follow'`` valla a  ``'/{{$user->username}}/unfollow'`` y luego que el botón diga *dejar de seguir*
+```php
+@extends('layouts.app')
+
+@section('content')
+    <h1>{{$user->username}}</h1>
+@if (Auth::check())
+  @if (Auth::user()->isFollowing($user))
+  <form action="/{{$user->username}}/unfollow" method="post">
+    {{ csrf_field() }}
+    @if (session('success'))
+        <span class="text-success">{{ session('success') }}</span>
+    @endif
+    <button class="btn btn-danger">Unfollow</button>
+  </form>
+  @else
+  <form action="/{{$user->username}}/follow" method="post">
+    {{ csrf_field() }}
+    @if (session('success'))
+        <span class="text-success">{{ session('success') }}</span>
+    @endif
+    <button class="btn btn-primary">Follow</button>
+  </form>
+  @endif
+@endif
+<div class="row">
+  @foreach ($user->messages as $message)
+    <div class="col-6">
+      @include('messages.message')
+    </div>
+  @endforeach
+</div>
+@endsection
+```
+Si ahora nosotros oprimimos el botón de **unfollow** vamos a tener un error pues hasta ahora todavía no hemos implementado el unfollow, así que vamos a implementar esto, y luego terminamos el ciclo.
+
+Vamos a crear la ruta vamos a ir a ``routes\web`` agregamos la ruta de:
+``Route::post('/{username}/unfollow', 'UsersController@unfollow');``
+Qué es exactamente igual a la anterior solo que ahora irá a otra ruta y a la función unfollow, y luego en el UsersController vamos agregar la función **unfollow** va a ser muy parecida a la función de **follow**: voy a buscar al usuario, voy a buscarme a mi como usuario logeado **pero en vez de hacer attach vamos a poner detach** estó quedaría así:
+```php
+public function unfollow($username, Request $request) {
+        $user = $this->findByUsername($username);
+
+        $me = $request->user();
+
+        $me->follows()->detach($user);
+
+        return redirect('/'.$username)->withSuccess('Usuario no seguido');
+    }
+```
+Ahora ya tenemos una forma de seguir y dejar de seguir usuarios ahora estaría interesante poder ver a quien seguimos.
+
+Para eso vamos a implementar un link a cada usuario con su listado de gente que lo sigue y por otro un listado de gente al que ese usuario sigue.
+
+Vamos a ir a la vista del usuario. Vamos a tener el username y vamos agregar 2 links;
+```php
+@section('content')
+    <h1>{{$user->username}}</h1>
+    <a href="/{{$user->username}}/follows" class="btn btn-light">
+      Sigue a <span class="badge badge-secondary">{{$user->follows->count()}}</span>
+    </a>
+    <a href="/{{$user->username}}/followed" class="btn btn-light">
+        Seguidores <span class="badge badge-secondary">{{$user->followers->count()}}</span>
+    </a>
+//.
+//.
+//.
+```
+count(): hará una query si todavía no sabemos a quienes seguimos pero si ya hemos listado a los usuarios que seguimos simplemente contará la cantidad en memoria.
+
+### Creando la página de seguidores
+
+Ahora vamos a crear la página de seguidores; para eso necesitamos una nueva ruta en el archivo de rutas. ``Route::get('/{username}/followers', 'UsersController@followers');``
+
+Vamos a crear el controller de Followers; que lo más probable es que el count fallaba en el span del usuario porque aún no lo habíamos creado. 
+Lo vamos a crear muy parecido al método *follow*, está función va a recibir al usuario y lo va a buscar. 
+
+Ahora podríamos reutilizar la misma vista haciendole un pequeño cambió; en vez de que la vista siempre pidá el listado de *follows* podemos pasarle tanto el usuario como los usuarios que queremos listar, pero vamos a pasarle 2 párametros, por un lado el user y por otro lado los *follows* que en esté caso serían los **followers**. 
+```php
+public function followers($username)
+    {
+        $user = $this->findByUsername($username);
+
+        return view('users.follows', [
+            'user' => $user,
+            'follows' => $user->followers,
+        ]);
+    }
+```
+Luego solo tenemos que corregirle el objeto a la función **follows()** para que pasé la relación, en esté caso solo le añadiremos ``'followds' => $user->follows``, también podemos pasarle un tercer párametro al objeto, en esté caso le vamos a pasar el nombre del método que está utilizando ``'method' => 'followers'``.
+
+Por último en la vista show vamos a mostrar el texto y agregaremos condicionales para saber el método que está usando de la siguiente manera:
+```php
+@extends('layouts.app')
+@section('content')
+   <h1>{{$user->name}}</h1><br> 
+   @if ($method == 'followers')
+   <h3>Seguidores:</h3>
+   @elseif($method == 'follows')
+   <h3>Seguidos:</h3>
+   @endif
+  <ul>
+  @foreach ($follows as $follow)
+    <li>{{ $follow->username }}</li>   
+  @endforeach
+  </ul>
+@endsection
+```
+
+
+
 
 
 
